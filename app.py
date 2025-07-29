@@ -3,7 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import BigInteger, func
 from datetime import datetime, timezone, timedelta, date
 import os
-from database_headers import db, Address, UprnCheck, Whitelist, DeploymentUprn
+from database_headers import db, Address, UprnCheck, Whitelist, DeploymentUprn, UserDetails
+from address_check import check_query_quota, store_query, get_status_message
 
 MAX_DAILY_QUERIES = 5
 
@@ -14,8 +15,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-
-
 
 
 # ===================================================================================================
@@ -29,65 +28,27 @@ def enter_postcode():
     return render_template('enter_postcode.html')
 
 
-
-
-# Address check page
-
-
-def store_query(requested_uprn, user_ip):
-    # Log the check to web.uprn_checks
-    check = UprnCheck(
-        uprn=requested_uprn,
-        ip_address=user_ip,
-        check_date=date.today()
-    )
-    db.session.add(check)
-    db.session.commit()
-
+# ===================================================================================================
+# Process the address checking
 
 @app.route('/check_address', methods=['POST'])
 def check_address():
     uprn = request.form.get('uprn')
     ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
 
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    query_allowed = check_query_quota(db, ip_address, MAX_DAILY_QUERIES)
 
-    query_count = (
-        db.session.query(func.count(UprnCheck.id))
-        .outerjoin(Whitelist, UprnCheck.ip_address == Whitelist.ip_address)
-        .filter(UprnCheck.check_date >= yesterday.date())
-        .filter(UprnCheck.ip_address == ip_address)
-        .filter(Whitelist.ip_address == None)
-        .scalar()
-    )
-
-
-    if query_count >= MAX_DAILY_QUERIES:
+    if query_allowed == False:
         return render_template(
             "result.html",
             message="You have exceeded the maximum number of address checks allowed per day.",
             rate_limited=True
         )
-
     else:
-
-        store_query(uprn, ip_address)
-
+        store_query(db, uprn, ip_address)
         # Fetch status from deployment.uprn
-        deployment_status = DeploymentUprn.query.get(uprn)
-        status = deployment_status.status if deployment_status else None
 
-        # Interpret the status into a message
-        STATUS_MESSAGES = {
-            1: 'Good news!  We are considering building at your property.',
-            2: 'Good news!  Your property is already in our plans.',
-            3: 'Good news!  We are already building to connect your property.',
-            4: 'Good news!  We are already building to connect your property.',
-            5: 'Good news!  Your property is ready to be connected - you can order now.',
-            6: 'Good news!  Your property is ready to be connected - you can order now.'
-        }
-
-        message = STATUS_MESSAGES.get(status, 'Sorry, we have no plans to build at your property at present.')
+        status, message = get_status_message(uprn)
 
         # If the address is eligible (status = 1), allow the user to enter details
         if status:
@@ -97,22 +58,28 @@ def check_address():
             return render_template('result.html', message=message, rate_limited=False)
 
 
+# ===================================================================================================
 # Submit user details
 @app.route('/submit_details', methods=['POST'])
 def submit_details():
-    address_id = request.form['address_id']
-    user_name = request.form['user_name']
-    user_email = request.form['user_email']
+    uprn = request.form.get('uprn')
+    name = request.form.get('name')
+    email = request.form.get('email')
+    phone = request.form.get('phone')
 
-    address = Address.query.get(address_id)
-    if address:
-        address.user_name = user_name
-        address.user_email = user_email
-        db.session.commit()
-        message = 'Your details have been saved.'
-    else:
-        message = 'Address not found.'
-    return render_template('result.html', message=message)
+    user = UserDetails(
+        uprn=uprn,
+        name=name,
+        email=email,
+        phone=phone,
+        date=date.today()
+    )
+
+    db.session.add(user)
+    db.session.commit()
+
+    return render_template('result.html', message='Your details have been saved successfully.')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
