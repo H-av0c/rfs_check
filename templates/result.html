@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Address Status</title>
+</head>
+<body>
+    <h1>Address Check Result</h1>
+
+    <p><strong>{{ message }}</strong></p>
+
+    {% if address and message and 'good' in message.lower() %}
+        <hr>
+        <h2>Register Your Details</h2>
+        <form method="POST" action="{{ url_for('submit_details') }}">
+            <input type="hidden" name="uprn" value="{{ address.uprn }}">
+
+            <label for="name">Full Name:</label><br>
+            <input type="text" id="name" name="name" required><br><br>
+
+            <label for="email">Email Address:</label><br>
+            <input type="email" id="email" name="email" required><br><br>
+
+            <label for="phone">Contact Phone Number:</label><br>
+            <input type="text" id="phone" name="phone"><br><br>
+
+            <button type="submit">Submit</button>
+        </form>
+    {% endif %}
+
+    <br>
+    {% if not rate_limited %}
+        <a href="{{ url_for('enter_postcode') }}">Check another postcode</a>
+    {% endif %}
+</body>
+</html>
