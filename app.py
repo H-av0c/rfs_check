@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import BigInteger, func
 from datetime import datetime, timezone, timedelta, date
 import os
+import re
 from database_headers import db, Address, UprnCheck, Whitelist, DeploymentUprn, UserDetails
 from address_check import check_query_quota, store_query, get_status_message
 
@@ -18,13 +19,35 @@ db.init_app(app)
 
 
 # ===================================================================================================
+
+def format_postcode(raw_postcode):
+    if not raw_postcode:
+        return None
+
+    # Strip spaces and make uppercase
+    cleaned = re.sub(r'\s+', '', raw_postcode).upper()
+
+    # Valid UK postcodes are minimum 5, max 7 characters
+    if len(cleaned) < 5 or len(cleaned) > 7:
+        return None  # Or raise a ValueError
+
+    # Insert space before last 3 characters
+    return cleaned[:-3] + ' ' + cleaned[-3:]
+
+# ===================================================================================================
 # Display postcode capture page when app called
 @app.route('/', methods=['GET', 'POST'])
 def enter_postcode():
     if request.method == 'POST':
-        postcode = request.form['postcode']
-        addresses = Address.query.filter_by(postcode=postcode.upper()).all()
-        return render_template('select_address.html', addresses=addresses, postcode=postcode.upper())
+        raw_postcode = request.form['postcode']
+        postcode = format_postcode(raw_postcode)
+
+
+        if not postcode:
+            return render_template('enter_postcode.html', error="Invalid postcode format")
+
+        addresses = Address.query.filter_by(postcode=postcode).all()
+        return render_template('select_address.html', addresses=addresses, postcode=postcode)
     return render_template('enter_postcode.html')
 
 
