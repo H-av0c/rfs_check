@@ -34,6 +34,22 @@ def format_postcode(raw_postcode):
     # Insert space before last 3 characters
     return cleaned[:-3] + ' ' + cleaned[-3:]
 
+
+def format_addresses(addresses):
+    """
+    Takes a list of address objects with address1 and address2 fields,
+    and returns a list of clean display strings.
+    """
+    combined = []
+
+    for addr in addresses:
+        if addr.address2:
+            full = f"{addr.address1}, {addr.address2}"
+        else:
+            full = addr.address1
+        combined.append((addr.uprn, full))  # Keep UPRN for form value
+    return combined
+
 # ===================================================================================================
 # Display postcode capture page when app called
 @app.route('/', methods=['GET', 'POST'])
@@ -46,7 +62,8 @@ def enter_postcode():
         if not postcode:
             return render_template('enter_postcode.html', error="Invalid postcode format")
 
-        addresses = Address.query.filter_by(postcode=postcode).all()
+        raw_addresses = Address.query.filter_by(postcode=postcode).all()
+        addresses = format_addresses(raw_addresses)
         return render_template('select_address.html', addresses=addresses, postcode=postcode)
     return render_template('enter_postcode.html')
 

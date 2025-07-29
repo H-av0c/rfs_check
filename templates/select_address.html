@@ -11,8 +11,8 @@
         <form method="POST" action="{{ url_for('check_address') }}">
             <label for="address_id">Addresses for postcode "{{ postcode }}":</label><br><br>
             <select name="uprn" id="uprn" required>
-                {% for address in addresses %}
-                    <option value="{{ address.uprn }}">{{ address.address1 }}</option>
+                {% for uprn, full_address in addresses %}
+                    <option value="{{ uprn }}">{{ full_address }}</option>
                 {% endfor %}
             </select><br><br>
             <button type="submit">Check Address</button>

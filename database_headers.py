@@ -17,6 +17,7 @@ class Address(db.Model):
     uprn = db.Column(db.BigInteger, primary_key=True)
     postcode = db.Column(db.String, nullable=False)
     address1 = db.Column(db.String, nullable=False)
+    address2 = db.Column(db.String, nullable=False)
 
 
 # ===================================================================================================
